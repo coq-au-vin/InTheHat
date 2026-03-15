@@ -3,6 +3,8 @@ import AVFoundation
 class AudioManager: ObservableObject {
     private var silentPlayer: AVAudioPlayer?
     private var beepPlayer: AVAudioPlayer?
+    private var bingPlayer: AVAudioPlayer?
+    private var pipPlayer: AVAudioPlayer?
 
     init() {
         NotificationCenter.default.addObserver(
@@ -18,43 +20,60 @@ class AudioManager: ObservableObject {
             try AVAudioSession.sharedInstance().setCategory(.playback, options: [.mixWithOthers])
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
-            print("AudioManager: Failed to configure session: \(error)")
+            print("AudioManager: session config failed: \(error)")
         }
+        silentPlayer = makePlayer(resource: "silence")
+        silentPlayer?.numberOfLoops = -1
+        silentPlayer?.volume = 0.0
+        silentPlayer?.prepareToPlay()
+
+        beepPlayer = makePlayer(resource: "beep")
+        beepPlayer?.prepareToPlay()
+
+        bingPlayer = makePlayer(resource: "bing")
+        bingPlayer?.prepareToPlay()
+
+        pipPlayer = makePlayer(resource: "pip")
+        pipPlayer?.prepareToPlay()
     }
 
     func startSilentLoop() {
-        guard let url = Bundle.main.url(forResource: "silence", withExtension: "mp3") else {
-            print("AudioManager: silence.mp3 not found in bundle")
-            return
-        }
-        do {
-            silentPlayer = try AVAudioPlayer(contentsOf: url)
-            silentPlayer?.numberOfLoops = -1
-            silentPlayer?.volume = 0.0
-            silentPlayer?.prepareToPlay()
-            silentPlayer?.play()
-        } catch {
-            print("AudioManager: Failed to start silent loop: \(error)")
-        }
+        guard let player = silentPlayer else { return }
+        if !player.isPlaying { player.play() }
     }
 
     func stopSilentLoop() {
         silentPlayer?.stop()
-        silentPlayer = nil
+        silentPlayer?.currentTime = 0
     }
 
     func playBeep() {
-        guard let url = Bundle.main.url(forResource: "beep", withExtension: "mp3") else {
-            print("AudioManager: beep.mp3 not found in bundle")
-            return
+        beepPlayer?.currentTime = 0
+        beepPlayer?.play()
+    }
+
+    func playBing() {
+        try? AVAudioSession.sharedInstance().setActive(true)
+        bingPlayer?.currentTime = 0
+        bingPlayer?.play()
+    }
+
+    func playPip() {
+        try? AVAudioSession.sharedInstance().setActive(true)
+        pipPlayer?.currentTime = 0
+        pipPlayer?.play()
+    }
+
+    private func makePlayer(resource: String) -> AVAudioPlayer? {
+        guard let url = Bundle.main.url(forResource: resource, withExtension: "wav") else {
+            print("AudioManager: \(resource).wav not found in bundle")
+            return nil
         }
         do {
-            beepPlayer = try AVAudioPlayer(contentsOf: url)
-            beepPlayer?.numberOfLoops = 0
-            beepPlayer?.prepareToPlay()
-            beepPlayer?.play()
+            return try AVAudioPlayer(contentsOf: url)
         } catch {
-            print("AudioManager: Failed to play beep: \(error)")
+            print("AudioManager: failed to load \(resource).wav: \(error)")
+            return nil
         }
     }
 
@@ -66,14 +85,8 @@ class AudioManager: ObservableObject {
         else { return }
 
         if type == .ended {
-            do {
-                try AVAudioSession.sharedInstance().setActive(true)
-            } catch {
-                print("AudioManager: Failed to reactivate session after interruption: \(error)")
-            }
-            if silentPlayer != nil {
-                startSilentLoop()
-            }
+            try? AVAudioSession.sharedInstance().setActive(true)
+            startSilentLoop()
         }
     }
 

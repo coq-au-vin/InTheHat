@@ -3,6 +3,7 @@ import UIKit
 
 enum TimerState: Equatable {
     case idle
+    case countdown(count: Int)
     case work(exercise: Int, round: Int)
     case rest(exercise: Int, round: Int)
     case roundRest(completedRound: Int)
@@ -17,7 +18,10 @@ class WorkoutManager: ObservableObject {
     @Published var isPaused: Bool = false
 
     var isWorkoutActive: Bool {
-        state != .idle && state != .finished
+        switch state {
+        case .idle, .finished: return false
+        default: return true
+        }
     }
 
     private let audioManager: AudioManager
@@ -28,6 +32,7 @@ class WorkoutManager: ObservableObject {
     private var accumulatedPauseTime: CFAbsoluteTime = 0
     private var pauseStartTime: CFAbsoluteTime = 0
     private var phaseDuration: CFAbsoluteTime = 0
+    private var lastCountdownBuzz: Int = 0
 
     init(audioManager: AudioManager, notificationManager: NotificationManager) {
         self.audioManager = audioManager
@@ -37,10 +42,10 @@ class WorkoutManager: ObservableObject {
     // MARK: - Public Controls
 
     func startWorkout() {
-        config = config  // ensure fresh copy
-        let startTime = Date()
+        // Offset notifications by 3.5 s to account for the 3-count countdown
+        let startTime = Date().addingTimeInterval(3.5)
         notificationManager.scheduleAllNotifications(for: config, startTime: startTime)
-        beginPhase(.work(exercise: 1, round: 1))
+        beginPhase(.countdown(count: 3))
     }
 
     func pause() {
@@ -78,10 +83,20 @@ class WorkoutManager: ObservableObject {
         isPaused = false
         accumulatedPauseTime = 0
         phaseDuration = CFAbsoluteTime(durationFor(newState))
-        // Start 0.5 s in the future so the display holds at full duration briefly
-        // before counting down. tick() clamps elapsed to 0 during this window.
-        phaseStartTime = CFAbsoluteTimeGetCurrent() + 0.5
-        displaySeconds = Int(phaseDuration)
+        lastCountdownBuzz = 0
+
+        if case .countdown(let count) = newState {
+            // Countdown: no hold at start — pip fires immediately, snappy feel
+            phaseStartTime = CFAbsoluteTimeGetCurrent()
+            displaySeconds = count
+            audioManager.playPip()
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        } else {
+            // Work/rest phases: 0.5 s hold at start before counting down
+            phaseStartTime = CFAbsoluteTimeGetCurrent() + 0.5
+            displaySeconds = Int(phaseDuration)
+        }
+
         phaseProgress = 0.0
         startTicker()
     }
@@ -95,31 +110,59 @@ class WorkoutManager: ObservableObject {
     }
 
     private func tick() {
-        // Clamp to 0 during the start-of-phase hold window (phaseStartTime is in the future)
         let elapsed = max(0, CFAbsoluteTimeGetCurrent() - phaseStartTime - accumulatedPauseTime)
         let remaining = max(0, phaseDuration - elapsed)
-        displaySeconds = Int(ceil(remaining))
-        phaseProgress = min(1.0, elapsed / phaseDuration)
+
+        if case .countdown(let count) = state {
+            // Show the fixed count number, not a decrementing timer
+            displaySeconds = count
+            phaseProgress = min(1.0, elapsed / phaseDuration)
+        } else {
+            displaySeconds = Int(ceil(remaining))
+            phaseProgress = min(1.0, elapsed / phaseDuration)
+
+            // Light pip + haptic on 3, 2, 1 during work/rest phases
+            if displaySeconds <= 3 && displaySeconds > 0 && displaySeconds != lastCountdownBuzz {
+                lastCountdownBuzz = displaySeconds
+                audioManager.playPip()
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+        }
 
         if remaining <= 0 {
-            // Show "0" for 0.5 s before transitioning so the display clearly hits zero
             timer?.invalidate()
             timer = nil
-            displaySeconds = 0
             phaseProgress = 1.0
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                self?.advancePhase()
+
+            if case .countdown = state {
+                displaySeconds = 0
+                // Short gap between countdown pips; bing fires when work begins
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                    self?.advancePhase()
+                }
+            } else {
+                displaySeconds = 0
+                triggerTransitionFeedback()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    self?.advancePhase()
+                }
             }
         }
     }
 
     private func advancePhase() {
-        timer?.invalidate()
-        timer = nil
-
-        triggerTransitionFeedback()
-
         let nextState = nextPhase(from: state)
+
+        // Play bing when transitioning INTO the first work phase (the "GO!" signal)
+        // and for all subsequent work/rest/roundRest transitions
+        if case .countdown(let count) = state, count > 1 {
+            // countdown→countdown: pip already fired at beginPhase, nothing here
+        } else if case .countdown = state {
+            // countdown(1) → work: bing is the GO signal
+            triggerTransitionFeedback()
+        }
+        // work/rest/roundRest transitions: bing already fired in tick() above
+
         if nextState == .finished {
             state = .finished
             audioManager.stopSilentLoop()
@@ -130,6 +173,9 @@ class WorkoutManager: ObservableObject {
 
     private func nextPhase(from current: TimerState) -> TimerState {
         switch current {
+        case .countdown(let count):
+            return count > 1 ? .countdown(count: count - 1) : .work(exercise: 1, round: 1)
+
         case .work(let exercise, let round):
             return .rest(exercise: exercise, round: round)
 
@@ -152,20 +198,16 @@ class WorkoutManager: ObservableObject {
 
     private func durationFor(_ state: TimerState) -> Int {
         switch state {
-        case .work:
-            return config.workDuration
-        case .rest:
-            return config.restDuration
-        case .roundRest:
-            return config.restBetweenRounds
-        case .idle, .finished:
-            return 0
+        case .countdown:    return 1
+        case .work:         return config.workDuration
+        case .rest:         return config.restDuration
+        case .roundRest:    return config.restBetweenRounds
+        case .idle, .finished: return 0
         }
     }
 
     private func triggerTransitionFeedback() {
-        audioManager.playBeep()
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.success)
+        audioManager.playBing()
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
     }
 }

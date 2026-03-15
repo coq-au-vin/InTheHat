@@ -20,10 +20,8 @@ targets:
     sources:
       - path: PulseTimer
         excludes:
-          - "Resources/**"
           - "README.md"
-    resources:
-      - path: PulseTimer/Resources
+          - "Resources/*.mp3"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yourname.PulseTimer
