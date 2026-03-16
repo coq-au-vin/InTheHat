@@ -5,6 +5,7 @@ struct PulseTimerApp: App {
     @StateObject private var audioManager = AudioManager()
     @StateObject private var notificationManager = NotificationManager()
     @StateObject private var workoutManager: WorkoutManager
+    @StateObject private var savedWorkoutsManager = SavedWorkoutsManager()
 
     init() {
         let audio = AudioManager()
@@ -21,6 +22,7 @@ struct PulseTimerApp: App {
                 .environmentObject(audioManager)
                 .environmentObject(notificationManager)
                 .environmentObject(workoutManager)
+                .environmentObject(savedWorkoutsManager)
                 .task {
                     audioManager.configureSession()
                     _ = await notificationManager.requestPermission()

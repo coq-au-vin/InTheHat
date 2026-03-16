@@ -113,9 +113,11 @@ private struct RowDivider: View {
 struct SetupView: View {
     @EnvironmentObject private var workoutManager: WorkoutManager
     @EnvironmentObject private var audioManager: AudioManager
+    @EnvironmentObject private var savedWorkoutsManager: SavedWorkoutsManager
 
     @State private var exerciseNames: [String] = []
     @State private var showExerciseNames = false
+    @State private var showSavedWorkouts = false
 
     private var config: Binding<WorkoutConfiguration> { $workoutManager.config }
 
@@ -180,6 +182,30 @@ struct SetupView: View {
             .padding(.horizontal, 24)
             .padding(.top, 60)
             .padding(.bottom, 28)
+        }
+        .overlay(alignment: .topTrailing) {
+            Button { showSavedWorkouts = true } label: {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundStyle(Color.theme.textPrimary.opacity(0.75))
+                    .frame(width: 44, height: 44)
+            }
+            .padding(.top, 52)
+            .padding(.trailing, 12)
+        }
+        .sheet(isPresented: $showSavedWorkouts) {
+            SavedWorkoutsSheet(
+                currentConfig: workoutManager.config,
+                onLoad: { config in
+                    workoutManager.config = config
+                    resizeNames(to: config.exercisesPerRound)
+                    exerciseNames = config.exerciseNames + Array(
+                        repeating: "",
+                        count: max(0, config.exercisesPerRound - config.exerciseNames.count)
+                    )
+                }
+            )
+            .environmentObject(savedWorkoutsManager)
         }
     }
 
@@ -340,6 +366,134 @@ struct SetupView: View {
     }
 }
 
+// MARK: - Saved Workouts Sheet
+
+private struct SavedWorkoutsSheet: View {
+    @EnvironmentObject private var savedWorkoutsManager: SavedWorkoutsManager
+    @Environment(\.dismiss) private var dismiss
+
+    let currentConfig: WorkoutConfiguration
+    let onLoad: (WorkoutConfiguration) -> Void
+
+    @State private var showSaveAlert = false
+    @State private var workoutName = ""
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.theme.background.ignoresSafeArea()
+
+                if savedWorkoutsManager.workouts.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "tray")
+                            .font(.system(size: 40))
+                            .foregroundStyle(Color.theme.textSecondary)
+                        Text("No saved workouts yet")
+                            .font(.rounded(.body, weight: .regular))
+                            .foregroundStyle(Color.theme.textSecondary)
+                        Text("Tap 'Save current' to save this workout.")
+                            .font(.rounded(.footnote, weight: .regular))
+                            .foregroundStyle(Color.theme.textSecondary.opacity(0.7))
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, 40)
+                } else {
+                    List {
+                        ForEach(savedWorkoutsManager.workouts) { workout in
+                            SavedWorkoutRow(workout: workout) {
+                                onLoad(workout.config)
+                                dismiss()
+                            }
+                        }
+                        .onDelete { savedWorkoutsManager.delete(at: $0) }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.theme.background)
+                }
+            }
+            .navigationTitle("Saved Workouts")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.theme.surface, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Done") { dismiss() }
+                        .font(.rounded(.body, weight: .semibold))
+                        .foregroundStyle(Color.theme.textPrimary)
+                }
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if !savedWorkoutsManager.workouts.isEmpty {
+                        EditButton()
+                            .font(.rounded(.subheadline, weight: .semibold))
+                            .foregroundStyle(Color.theme.textPrimary)
+                    }
+                    Button {
+                        workoutName = ""
+                        showSaveAlert = true
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "square.and.arrow.down")
+                            Text("Save current")
+                        }
+                        .font(.rounded(.subheadline, weight: .semibold))
+                        .foregroundStyle(Color.theme.textPrimary)
+                    }
+                }
+            }
+        }
+        .alert("Save Workout", isPresented: $showSaveAlert) {
+            TextField("e.g. Morning HIIT", text: $workoutName)
+            Button("Save") {
+                let trimmed = workoutName.trimmingCharacters(in: .whitespaces)
+                if !trimmed.isEmpty {
+                    savedWorkoutsManager.save(currentConfig, name: trimmed)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Give this workout a name")
+        }
+    }
+}
+
+private struct SavedWorkoutRow: View {
+    let workout: SavedWorkout
+    let onLoad: () -> Void
+
+    private var subtitle: String {
+        let total = workout.config.totalDuration
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        let time = h > 0
+            ? String(format: "%d:%02d:%02d", h, m, s)
+            : String(format: "%d:%02d", m, s)
+        return "\(workout.config.exercisesPerRound) exercises · \(workout.config.rounds) rounds · \(time)"
+    }
+
+    var body: some View {
+        Button(action: onLoad) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(workout.name)
+                        .font(.rounded(.body, weight: .semibold))
+                        .foregroundStyle(Color.theme.textPrimary)
+                    Text(subtitle)
+                        .font(.rounded(.footnote, weight: .regular))
+                        .foregroundStyle(Color.theme.textSecondary)
+                }
+                Spacer()
+                Image(systemName: "arrow.down.circle")
+                    .font(.system(size: 20))
+                    .foregroundStyle(Color.theme.textSecondary)
+            }
+            .padding(.vertical, 6)
+        }
+        .listRowBackground(Color.theme.surface)
+    }
+}
+
 #Preview {
     NavigationStack {
         SetupView()
@@ -348,5 +502,6 @@ struct SetupView: View {
                 notificationManager: NotificationManager()
             ))
             .environmentObject(AudioManager())
+            .environmentObject(SavedWorkoutsManager())
     }
 }

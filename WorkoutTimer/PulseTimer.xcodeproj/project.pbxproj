@@ -23,6 +23,7 @@
 		EF256D88A5847DD90C821E5E /* WorkoutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 665138986CB00E43DD5AA629 /* WorkoutManager.swift */; };
 		F3889EC23C98595465018DBC /* bing.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3DE05CA556E508274CB6A1BB /* bing.wav */; };
 		FB713CD54CE7093417F0C513 /* AudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E33E9A1D047594696309BB8D /* AudioManager.swift */; };
+		CC11DD22EE33FF44AA55BB66 /* SavedWorkoutsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD11EE22FF33AA44BB55CC66 /* SavedWorkoutsManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -45,6 +46,7 @@
 		E53C1C4DC834B4EAAD0E73CA /* PulseTimer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PulseTimer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F0D03944FAB493542453C81E /* PulseTimerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseTimerApp.swift; sourceTree = "<group>"; };
 		F653C40A6620CB4E44407B77 /* ActiveTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveTimerView.swift; sourceTree = "<group>"; };
+		DD11EE22FF33AA44BB55CC66 /* SavedWorkoutsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedWorkoutsManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -53,6 +55,7 @@
 			children = (
 				E33E9A1D047594696309BB8D /* AudioManager.swift */,
 				B90DF1173A331A4E0BFECC0D /* NotificationManager.swift */,
+				DD11EE22FF33AA44BB55CC66 /* SavedWorkoutsManager.swift */,
 				665138986CB00E43DD5AA629 /* WorkoutManager.swift */,
 			);
 			path = Managers;
@@ -208,7 +211,8 @@
 				090BF22B416233CCC2273901 /* Theme.swift in Sources */,
 				0B06D5122522324B08E1934B /* TimerDisplayView.swift in Sources */,
 				69BA24B76060B16499F203B6 /* WorkoutConfiguration.swift in Sources */,
-				EF256D88A5847DD90C821E5E /* WorkoutManager.swift in Sources */,
+				CC11DD22EE33FF44AA55BB66 /* SavedWorkoutsManager.swift in Sources */,
+			EF256D88A5847DD90C821E5E /* WorkoutManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -33,10 +33,17 @@ class WorkoutManager: ObservableObject {
     private var pauseStartTime: CFAbsoluteTime = 0
     private var phaseDuration: CFAbsoluteTime = 0
     private var lastCountdownBuzz: Int = 0
+    private var backgroundedAt: CFAbsoluteTime? = nil
 
     init(audioManager: AudioManager, notificationManager: NotificationManager) {
         self.audioManager = audioManager
         self.notificationManager = notificationManager
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(appDidEnterBackground),
+            name: UIApplication.didEnterBackgroundNotification, object: nil)
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(appWillEnterForeground),
+            name: UIApplication.willEnterForegroundNotification, object: nil)
     }
 
     // MARK: - Public Controls
@@ -72,6 +79,7 @@ class WorkoutManager: ObservableObject {
         displaySeconds = 0
         phaseProgress = 0.0
         accumulatedPauseTime = 0
+        backgroundedAt = nil
         notificationManager.cancelAllWorkoutNotifications()
         audioManager.stopSilentLoop()
     }
@@ -209,5 +217,64 @@ class WorkoutManager: ObservableObject {
     private func triggerTransitionFeedback() {
         audioManager.playBing()
         UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+    }
+
+    // MARK: - Background / Foreground
+
+    @objc private func appDidEnterBackground() {
+        guard isWorkoutActive, !isPaused else { return }
+        backgroundedAt = CFAbsoluteTimeGetCurrent()
+        timer?.invalidate()
+        timer = nil
+    }
+
+    @objc private func appWillEnterForeground() {
+        guard isWorkoutActive, !isPaused, backgroundedAt != nil else {
+            backgroundedAt = nil
+            return
+        }
+        backgroundedAt = nil
+        resumeFromBackground()
+    }
+
+    private func resumeFromBackground() {
+        let now = CFAbsoluteTimeGetCurrent()
+        let timeInPhase = now - phaseStartTime - accumulatedPauseTime
+
+        guard timeInPhase >= phaseDuration else {
+            // Still within the same phase — ticker naturally shows correct time
+            startTicker()
+            return
+        }
+
+        // Advance through however many phases elapsed while backgrounded
+        var surplus = timeInPhase - phaseDuration
+        var current = state
+
+        while true {
+            let next = nextPhase(from: current)
+            if next == .finished {
+                state = .finished
+                displaySeconds = 0
+                phaseProgress = 1.0
+                audioManager.stopSilentLoop()
+                return
+            }
+            let nextDuration = CFAbsoluteTime(durationFor(next))
+            if surplus < nextDuration {
+                // We're partway through `next` — set it up from here
+                state = next
+                phaseDuration = nextDuration
+                accumulatedPauseTime = 0
+                lastCountdownBuzz = 0
+                phaseStartTime = now - surplus
+                displaySeconds = Int(ceil(nextDuration - surplus))
+                phaseProgress = min(1.0, surplus / nextDuration)
+                startTicker()
+                return
+            }
+            surplus -= nextDuration
+            current = next
+        }
     }
 }
