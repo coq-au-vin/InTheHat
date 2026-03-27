@@ -113,7 +113,9 @@ struct GameEndView: View {
 
                     PrimaryButton(title: "Play Again", action: vm.resetGame)
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 48)
+                        .padding(.bottom, 24)
+                    KoFiFooter()
+                        .padding(.bottom, 8)
                 }
             }
         }

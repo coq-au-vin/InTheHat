@@ -86,7 +86,9 @@ struct RoundSummaryView: View {
                         action: vm.nextTurn
                     )
                     .padding(.horizontal, 20)
-                    .padding(.bottom, 40)
+                    .padding(.bottom, 24)
+                    KoFiFooter()
+                        .padding(.bottom, 8)
                 }
             }
         }

@@ -1,5 +1,7 @@
 import SwiftUI
+#if DEBUG
 import Photos
+#endif
 
 struct SetupView: View {
     @EnvironmentObject var vm: GameViewModel
@@ -34,7 +36,13 @@ struct SetupView: View {
                     }
 
                     CardSection(title: "TEAMS") {
-                        StepperRow(label: "Number of teams",    value: $vm.settings.numTeams,        range: 2...8)
+                        StepperRow(label: "Number of teams",    value: $vm.settings.numTeams,        range: 2...max(2, vm.settings.numPlayers / 2))
+                    }
+                    .onChange(of: vm.settings.numPlayers) { _, newCount in
+                        let maxTeams = newCount / 2
+                        if vm.settings.numTeams > maxTeams {
+                            vm.settings.numTeams = max(2, maxTeams)
+                        }
                     }
 
                     CardSection(title: "ROUND") {
@@ -43,7 +51,9 @@ struct SetupView: View {
 
                     PrimaryButton(title: "Start Setup", action: vm.startSetup)
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 40)
+                        .padding(.bottom, 24)
+                    KoFiFooter()
+                        .padding(.bottom, 8)
                 }
                 .padding(.horizontal, 20)
             }
@@ -121,6 +131,24 @@ struct CardSection<Content: View>: View {
             .background(Color.theme.surface)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
+    }
+}
+
+// MARK: - Ko-fi footer
+
+struct KoFiFooter: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            Text("No Ads, Always Free —")
+                .font(.monoStats(.caption2))
+                .foregroundColor(Color.theme.textSecondary.opacity(0.45))
+            Link("support", destination: URL(string: "https://ko-fi.com/hannahllm")!)
+                .font(.monoStats(.caption2))
+                .foregroundColor(Color.theme.textSecondary.opacity(0.55))
+                .underline()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 12)
     }
 }
 

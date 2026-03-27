@@ -25,7 +25,9 @@ struct NamesEntryView: View {
                     nameFieldsCard
                     PrimaryButton(title: "Done — Put in Hat", action: submit, enabled: hasEnoughNames)
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 40)
+                        .padding(.bottom, 24)
+                    KoFiFooter()
+                        .padding(.bottom, 8)
                 }
             }
         }

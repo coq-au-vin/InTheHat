@@ -41,6 +41,7 @@ struct PlayerNameEntryView: View {
                 Spacer()
             }
         }
+        .safeAreaInset(edge: .bottom) { KoFiFooter() }
         .onAppear { focused = true }
     }
 
